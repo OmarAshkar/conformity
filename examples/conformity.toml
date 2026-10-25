@@ -1,0 +1,24 @@
+# Example rules file. Pass it with: conformity TARGET SOURCE --config rules.toml
+
+[files]
+# Must exist at the same path with identical SHA-256.
+identical = [
+    "LICENSE",
+    "pyproject.toml",
+    ".github/workflows/**/*.yml",
+]
+
+# Must exist at the same path, but SHA-256 must differ.
+different = [
+    ".env",
+    "config/local.toml",
+]
+
+[directories]
+# Must exist in the target.
+required = ["src", "tests", "docs"]
+
+[directories.structure]
+# Minimal entries that must exist inside each directory.
+src = ["__init__.py"]
+tests = ["conftest.py"]
