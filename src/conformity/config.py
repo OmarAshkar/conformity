@@ -19,6 +19,7 @@ class Config:
     different: tuple[str, ...] = ()
     required_files: tuple[str, ...] = ()
     required_dirs: tuple[str, ...] = ()
+    structure_required: tuple[str, ...] = ()
     structure: dict[str, tuple[str, ...]] = field(default_factory=dict)
     path: Path | None = None
 
@@ -29,6 +30,7 @@ class Config:
             or self.different
             or self.required_files
             or self.required_dirs
+            or self.structure_required
             or self.structure
         )
 
@@ -74,10 +76,16 @@ def parse_config(raw: dict[str, Any], *, path: Path | None = None) -> Config:
     raw_structure = directories.get("structure", {})
     if not isinstance(raw_structure, dict):
         raise ConfigError("[directories.structure] must be a table")
+    structure_required: tuple[str, ...] = ()
     structure: dict[str, tuple[str, ...]] = {}
     for directory, entries in raw_structure.items():
         if not isinstance(directory, str):
             raise ConfigError("[directories.structure] keys must be strings")
+        if directory == "required":
+            structure_required = _patterns(
+                entries, "[directories.structure].required"
+            )
+            continue
         _validate_pattern(directory, f"[directories.structure].{directory}")
         structure[directory] = _patterns(
             entries, f"[directories.structure].{directory}"
@@ -88,6 +96,7 @@ def parse_config(raw: dict[str, Any], *, path: Path | None = None) -> Config:
         different=different,
         required_files=required_files,
         required_dirs=required_dirs,
+        structure_required=structure_required,
         structure=structure,
         path=path,
     )

@@ -187,6 +187,61 @@ def test_required_directories(tmp_path) -> None:
     assert statuses["tests"] is Status.FAIL
 
 
+def test_flat_structure_required_supports_paths_and_globs(tmp_path) -> None:
+    target, source = tmp_path / "target", tmp_path / "source"
+    write(target, "src/__init__.py")
+    write(target, "src/core.py")
+    (target / "OUTPUTS").mkdir(parents=True)
+    source.mkdir()
+
+    report = run_checks(
+        target,
+        source,
+        config(
+            structure_required=(
+                "src/__init__.py",
+                "OUTPUTS/",
+                "src/*py",
+                "missing/",
+                "*.md",
+            )
+        ),
+    )
+
+    statuses = {result.path: result.status for result in report.results}
+    assert statuses["src/__init__.py"] is Status.PASS
+    assert statuses["OUTPUTS/"] is Status.PASS
+    assert statuses["src/*py"] is Status.PASS
+    assert statuses["missing/"] is Status.FAIL
+    assert statuses["*.md"] is Status.FAIL
+
+
+def test_flat_structure_glob_with_trailing_slash_requires_directories(tmp_path) -> None:
+    target, source = tmp_path / "target", tmp_path / "source"
+    (target / "packages" / "one").mkdir(parents=True)
+    write(target, "packages/file.py")
+    source.mkdir()
+
+    report = run_checks(
+        target,
+        source,
+        config(structure_required=("packages/*/",)),
+    )
+
+    assert report.ok
+    assert report.results[0].message == "1 directory match (packages/one)"
+
+
+def test_flat_structure_literal_with_trailing_slash_must_be_directory(tmp_path) -> None:
+    target, source = tmp_path / "target", tmp_path / "source"
+    write(target, "OUTPUTS")
+    source.mkdir()
+
+    report = run_checks(target, source, config(structure_required=("OUTPUTS/",)))
+
+    assert report.failures[0].message == "not a directory"
+
+
 def test_structure_requires_minimal_entries(tmp_path) -> None:
     target, source = tmp_path / "target", tmp_path / "source"
     (target / "src").mkdir(parents=True)

@@ -24,7 +24,11 @@ required = [
 required = ["src", "tests", "docs", "packages/*"]
 
 [directories.structure]
-# Minimal entries that must exist inside each directory. Glob entries need
-# at least one match.
-src = ["__init__.py", "*.py"]
-tests = ["conftest.py"]
+# Paths are relative to the target. Glob entries need at least one match, and
+# a trailing slash requires a directory.
+required = [
+    "src/__init__.py",
+    "src/*py",
+    "OUTPUTS/",
+    "tests/conftest.py",
+]

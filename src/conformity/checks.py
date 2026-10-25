@@ -61,6 +61,8 @@ def run_checks(
         _check_required_file(report, target_dir, pattern)
     for directory in config.required_dirs:
         _check_required_dir(report, target_dir, directory)
+    for pattern in config.structure_required:
+        _check_structure_required(report, target_dir, pattern)
     for directory, entries in config.structure.items():
         _check_structure(report, target_dir, directory, entries)
 
@@ -257,6 +259,81 @@ def _check_required_dir(report: Report, target: Path, directory: str) -> None:
     else:
         report.add(
             CheckResult(RuleKind.DIRECTORY, directory, Status.FAIL, "missing directory")
+        )
+
+
+def _check_structure_required(report: Report, target: Path, pattern: str) -> None:
+    """Check a flat structure requirement relative to the target root.
+
+    A trailing ``/`` requires a directory. Glob patterns need at least one
+    match; without a trailing slash files and directories are both accepted.
+    """
+
+    wants_directory = pattern.endswith("/")
+    normalized = pattern.rstrip("/") or pattern
+
+    if _is_glob(normalized):
+        matches = _glob_matches(target, normalized)
+        if wants_directory:
+            matches = [match for match in matches if (target / match).is_dir()]
+        if matches:
+            singular = "directory" if wants_directory else "entry"
+            plural = "directories" if wants_directory else "entries"
+            report.add(
+                CheckResult(
+                    RuleKind.DIRECTORY,
+                    pattern,
+                    Status.PASS,
+                    _describe_matches(matches, singular, plural),
+                )
+            )
+        else:
+            message = (
+                "no directories match pattern"
+                if wants_directory
+                else "no entries match pattern"
+            )
+            report.add(CheckResult(RuleKind.DIRECTORY, pattern, Status.FAIL, message))
+        return
+
+    path = target / normalized
+    if wants_directory:
+        if path.is_dir():
+            report.add(
+                CheckResult(
+                    RuleKind.DIRECTORY,
+                    pattern,
+                    Status.PASS,
+                    "directory exists",
+                )
+            )
+        elif path.exists():
+            report.add(
+                CheckResult(RuleKind.DIRECTORY, pattern, Status.FAIL, "not a directory")
+            )
+        else:
+            report.add(
+                CheckResult(RuleKind.DIRECTORY, pattern, Status.FAIL, "missing directory")
+            )
+        return
+
+    if path.exists():
+        report.add(
+            CheckResult(
+                RuleKind.DIRECTORY,
+                pattern,
+                Status.PASS,
+                "required entry exists",
+            )
+        )
+    else:
+        report.add(
+            CheckResult(
+                RuleKind.DIRECTORY,
+                pattern,
+                Status.FAIL,
+                "missing required entry",
+            )
         )
 
 

@@ -83,11 +83,16 @@ required = [
 # at least one matching directory must exist.
 required = ["src", "tests", "docs", "packages/*"]
 
-# Minimal structure that must exist inside each directory.
-# Literal entries must exist; glob entries must match at least one entry.
+# Flexible structure requirements, relative to the target root. A trailing
+# slash requires a directory; glob patterns need at least one match.
 [directories.structure]
-src = ["__init__.py", "conformity", "*.py"]
-tests = ["conftest.py"]
+required = [
+  "src/__init__.py",
+  "src/*py",
+  "OUTPUTS/",
+  "packages/*/",
+  "tests/conftest.py",
+]
 ```
 
 ### Semantics
@@ -100,8 +105,11 @@ tests = ["conftest.py"]
   must match at least one file. Directories are ignored by glob matches.
 - `[directories].required`: literal directories must exist in the target; glob
   patterns must match at least one directory.
-- `structure`: each listed directory must exist and contain the listed entries.
-  Entries may be globs, in which case at least one match is required.
+- `[directories.structure].required`: each path is checked relative to the
+  target root. Literal paths must exist, glob patterns must match at least one
+  entry, and a trailing `/` requires the match to be a directory.
+- The original per-directory structure table (for example
+  `[directories.structure]` with `src = ["__init__.py"]`) is still supported.
 - If a glob matches no files in the source for `identical`/`different`, the rule
   reports an error instead of silently passing.
 - Wildcard requirements are all "at least one match" rules; there is no maximum

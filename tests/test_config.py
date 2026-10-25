@@ -19,6 +19,7 @@ def test_parse_full_config() -> None:
         required = ["src", "tests", "packages/*"]
 
         [directories.structure]
+        required = ["src/__init__.py", "OUTPUTS/", "src/*py"]
         src = ["__init__.py", "*.py"]
         """
     )
@@ -29,6 +30,11 @@ def test_parse_full_config() -> None:
     assert config.different == (".env",)
     assert config.required_files == ("src/*.py", "docs/**/*.md")
     assert config.required_dirs == ("src", "tests", "packages/*")
+    assert config.structure_required == (
+        "src/__init__.py",
+        "OUTPUTS/",
+        "src/*py",
+    )
     assert config.structure == {"src": ("__init__.py", "*.py")}
     assert not config.is_empty
 
