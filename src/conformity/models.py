@@ -12,6 +12,7 @@ class RuleKind(str, Enum):
 
     IDENTICAL = "identical"
     DIFFERENT = "different"
+    FILE = "file"
     DIRECTORY = "directory"
 
 

@@ -17,13 +17,20 @@ class Config:
 
     identical: tuple[str, ...] = ()
     different: tuple[str, ...] = ()
+    required_files: tuple[str, ...] = ()
     required_dirs: tuple[str, ...] = ()
     structure: dict[str, tuple[str, ...]] = field(default_factory=dict)
     path: Path | None = None
 
     @property
     def is_empty(self) -> bool:
-        return not (self.identical or self.different or self.required_dirs or self.structure)
+        return not (
+            self.identical
+            or self.different
+            or self.required_files
+            or self.required_dirs
+            or self.structure
+        )
 
 
 def load_config(path: str | Path) -> Config:
@@ -52,7 +59,7 @@ def parse_config(raw: dict[str, Any], *, path: Path | None = None) -> Config:
     files = raw.get("files", {})
     if not isinstance(files, dict):
         raise ConfigError("[files] must be a table")
-    _reject_unknown(files, {"identical", "different"}, "[files]")
+    _reject_unknown(files, {"identical", "different", "required"}, "[files]")
 
     directories = raw.get("directories", {})
     if not isinstance(directories, dict):
@@ -61,6 +68,7 @@ def parse_config(raw: dict[str, Any], *, path: Path | None = None) -> Config:
 
     identical = _patterns(files.get("identical", []), "[files].identical")
     different = _patterns(files.get("different", []), "[files].different")
+    required_files = _patterns(files.get("required", []), "[files].required")
     required_dirs = _patterns(directories.get("required", []), "[directories].required")
 
     raw_structure = directories.get("structure", {})
@@ -78,6 +86,7 @@ def parse_config(raw: dict[str, Any], *, path: Path | None = None) -> Config:
     config = Config(
         identical=identical,
         different=different,
+        required_files=required_files,
         required_dirs=required_dirs,
         structure=structure,
         path=path,

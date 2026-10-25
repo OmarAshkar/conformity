@@ -71,14 +71,22 @@ different = [
   "config/local.toml",
 ]
 
-# Directories that must exist in the target.
-[directories]
-required = ["src", "tests", "docs"]
+# Files required in the target. Literal paths must exist; glob patterns must
+# match at least one file. Use this for "at least one" expectations.
+required = [
+  "src/*.py",       # at least one Python file directly in src/
+  "docs/**/*.md",   # at least one Markdown file anywhere under docs/
+]
 
-# Minimal structure that must exist inside required directories.
-# Each entry is checked for existence only.
+[directories]
+# Directories that must exist in the target. Wildcards work here too:
+# at least one matching directory must exist.
+required = ["src", "tests", "docs", "packages/*"]
+
+# Minimal structure that must exist inside each directory.
+# Literal entries must exist; glob entries must match at least one entry.
 [directories.structure]
-src = ["__init__.py", "conformity"]
+src = ["__init__.py", "conformity", "*.py"]
 tests = ["conftest.py"]
 ```
 
@@ -88,10 +96,16 @@ tests = ["conftest.py"]
   path in the target and have the same SHA-256 digest.
 - `different`: every path matched in the source must exist in the target and
   must have a different SHA-256 digest.
-- `required`: each listed directory must exist in the target.
+- `[files].required`: literal paths must be files in the target; glob patterns
+  must match at least one file. Directories are ignored by glob matches.
+- `[directories].required`: literal directories must exist in the target; glob
+  patterns must match at least one directory.
 - `structure`: each listed directory must exist and contain the listed entries.
-- If a glob matches no files in the source, the rule reports an error instead of
-  silently passing.
+  Entries may be globs, in which case at least one match is required.
+- If a glob matches no files in the source for `identical`/`different`, the rule
+  reports an error instead of silently passing.
+- Wildcard requirements are all "at least one match" rules; there is no maximum
+  or minimum count beyond one.
 - Absolute paths, `..`, and backslash separators are rejected in rule paths.
 
 ## Library / interactive use

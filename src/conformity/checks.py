@@ -57,6 +57,8 @@ def run_checks(
         _check_identical(report, target_dir, source_dir, pattern, hashes)
     for pattern in config.different:
         _check_different(report, target_dir, source_dir, pattern, hashes)
+    for pattern in config.required_files:
+        _check_required_file(report, target_dir, pattern)
     for directory in config.required_dirs:
         _check_required_dir(report, target_dir, directory)
     for directory, entries in config.structure.items():
@@ -185,7 +187,64 @@ def _check_different(
             )
 
 
+def _check_required_file(report: Report, target: Path, pattern: str) -> None:
+    """A required file is a literal path or a glob with at least one match."""
+
+    if _is_glob(pattern):
+        matches = [
+            match for match in _glob_matches(target, pattern) if (target / match).is_file()
+        ]
+        if matches:
+            report.add(
+                CheckResult(
+                    RuleKind.FILE,
+                    pattern,
+                    Status.PASS,
+                    _describe_matches(matches, "file", "files"),
+                )
+            )
+        else:
+            report.add(
+                CheckResult(RuleKind.FILE, pattern, Status.FAIL, "no files match pattern")
+            )
+        return
+
+    path = target / pattern
+    if path.is_file():
+        report.add(CheckResult(RuleKind.FILE, pattern, Status.PASS, "file exists"))
+    elif path.exists():
+        report.add(CheckResult(RuleKind.FILE, pattern, Status.FAIL, "not a file"))
+    else:
+        report.add(CheckResult(RuleKind.FILE, pattern, Status.FAIL, "missing file"))
+
+
 def _check_required_dir(report: Report, target: Path, directory: str) -> None:
+    if _is_glob(directory):
+        matches = [
+            match
+            for match in _glob_matches(target, directory)
+            if (target / match).is_dir()
+        ]
+        if matches:
+            report.add(
+                CheckResult(
+                    RuleKind.DIRECTORY,
+                    directory,
+                    Status.PASS,
+                    _describe_matches(matches, "directory", "directories"),
+                )
+            )
+        else:
+            report.add(
+                CheckResult(
+                    RuleKind.DIRECTORY,
+                    directory,
+                    Status.FAIL,
+                    "no directories match pattern",
+                )
+            )
+        return
+
     path = target / directory
     if path.is_dir():
         report.add(
@@ -213,6 +272,29 @@ def _check_structure(
 
     for entry in entries:
         relative = f"{directory}/{entry}"
+        if _is_glob(entry):
+            matches = _glob_matches(base, entry)
+            if matches:
+                display = [f"{directory}/{match}" for match in matches]
+                report.add(
+                    CheckResult(
+                        RuleKind.DIRECTORY,
+                        relative,
+                        Status.PASS,
+                        _describe_matches(display, "entry", "entries"),
+                    )
+                )
+            else:
+                report.add(
+                    CheckResult(
+                        RuleKind.DIRECTORY,
+                        relative,
+                        Status.FAIL,
+                        "no entries match pattern",
+                    )
+                )
+            continue
+
         path = target / relative
         if path.exists():
             report.add(
@@ -234,21 +316,36 @@ def _check_structure(
             )
 
 
-def _expected_files(root: Path, pattern: str) -> list[str]:
-    """Return relative file paths for a literal path or glob pattern."""
+def _is_glob(pattern: str) -> bool:
+    return bool(_GLOB_CHARS.intersection(pattern))
 
-    if not _GLOB_CHARS.intersection(pattern):
-        return [Path(pattern).as_posix()]
 
+def _glob_matches(root: Path, pattern: str) -> list[str]:
     matches = glob.glob(
         pattern,
         root_dir=root,
         recursive=True,
         include_hidden=True,
     )
-    files = []
-    for match in matches:
-        relative = Path(match).as_posix()
-        if (root / relative).is_file():
-            files.append(relative)
-    return sorted(set(files))
+    return sorted({Path(match).as_posix() for match in matches})
+
+
+def _describe_matches(matches: list[str], singular: str, plural: str) -> str:
+    label = singular if len(matches) == 1 else plural
+    preview = ", ".join(matches[:3])
+    if len(matches) > 3:
+        preview += ", ..."
+    return f"{len(matches)} {label} match ({preview})"
+
+
+def _expected_files(root: Path, pattern: str) -> list[str]:
+    """Return relative file paths for a literal path or glob pattern."""
+
+    if not _is_glob(pattern):
+        return [Path(pattern).as_posix()]
+
+    return [
+        relative
+        for relative in _glob_matches(root, pattern)
+        if (root / relative).is_file()
+    ]

@@ -13,12 +13,13 @@ def test_parse_full_config() -> None:
         [files]
         identical = ["LICENSE", "src/**/*.py"]
         different = [".env"]
+        required = ["src/*.py", "docs/**/*.md"]
 
         [directories]
-        required = ["src", "tests"]
+        required = ["src", "tests", "packages/*"]
 
         [directories.structure]
-        src = ["__init__.py"]
+        src = ["__init__.py", "*.py"]
         """
     )
 
@@ -26,8 +27,9 @@ def test_parse_full_config() -> None:
 
     assert config.identical == ("LICENSE", "src/**/*.py")
     assert config.different == (".env",)
-    assert config.required_dirs == ("src", "tests")
-    assert config.structure == {"src": ("__init__.py",)}
+    assert config.required_files == ("src/*.py", "docs/**/*.md")
+    assert config.required_dirs == ("src", "tests", "packages/*")
+    assert config.structure == {"src": ("__init__.py", "*.py")}
     assert not config.is_empty
 
 
@@ -68,6 +70,8 @@ def test_invalid_toml(tmp_path) -> None:
 def test_unsafe_patterns_are_rejected(pattern: str) -> None:
     with pytest.raises(ConfigError):
         parse_config({"files": {"identical": [pattern]}})
+    with pytest.raises(ConfigError):
+        parse_config({"files": {"required": [pattern]}})
 
 
 def test_wrong_value_types_are_rejected() -> None:
