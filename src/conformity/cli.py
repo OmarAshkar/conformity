@@ -69,6 +69,13 @@ def main(
         bool,
         typer.Option("--interactive", "-i", help="Open the TUI, pre-filled with any paths."),
     ] = False,
+    initial: Annotated[
+        bool,
+        typer.Option(
+            "--initial",
+            help="Only check that listed files exist; skip content and directory checks.",
+        ),
+    ] = False,
     version: Annotated[
         bool,
         typer.Option("--version", help="Show the version and exit."),
@@ -94,7 +101,7 @@ def main(
     if interactive or (target is None and source is None):
         from conformity.tui import run_tui
 
-        run_tui(target=target, source=source, config=config)
+        run_tui(target=target, source=source, config=config, initial=initial)
         return
 
     if target is None or source is None:
@@ -106,7 +113,7 @@ def main(
         raise typer.Exit(code=2)
 
     try:
-        report = run_checks(target, source, config)
+        report = run_checks(target, source, config, initial=initial)
     except (ConfigError, ConformanceError) as exc:
         typer.echo(f"error: {exc}", err=True)
         raise typer.Exit(code=2) from exc

@@ -270,6 +270,53 @@ def test_structure_missing_directory_reports_once(tmp_path) -> None:
     assert report.results[0].message == "missing directory"
 
 
+def test_initial_mode_only_requires_files_to_exist(tmp_path) -> None:
+    target, source = tmp_path / "target", tmp_path / "source"
+    write(target, "LICENSE", "target content\n")
+    write(source, "LICENSE", "source content\n")
+    write(target, ".env", "placeholder\n")
+    write(source, ".env", "placeholder\n")
+
+    report = run_checks(
+        target,
+        source,
+        config(
+            identical=("LICENSE",),
+            different=(".env",),
+            required_dirs=("src",),
+            structure_required=("OUTPUTS/",),
+            structure={"src": ("__init__.py",)},
+        ),
+        initial=True,
+    )
+
+    assert report.ok
+    statuses = {result.path: result.status for result in report.results}
+    assert statuses["LICENSE"] is Status.PASS
+    assert statuses[".env"] is Status.PASS
+    assert "src" not in statuses
+    assert "OUTPUTS/" not in statuses
+
+
+def test_initial_mode_still_requires_listed_files(tmp_path) -> None:
+    target, source = tmp_path / "target", tmp_path / "source"
+    target.mkdir()
+    write(source, "LICENSE")
+    write(source, ".env")
+
+    report = run_checks(
+        target,
+        source,
+        config(identical=("LICENSE",), different=(".env",)),
+        initial=True,
+    )
+
+    assert not report.ok
+    statuses = {result.path: result.status for result in report.results}
+    assert statuses["LICENSE"] is Status.FAIL
+    assert statuses[".env"] is Status.FAIL
+
+
 def test_config_from_path(tmp_path) -> None:
     target, source = tmp_path / "target", tmp_path / "source"
     target.mkdir()

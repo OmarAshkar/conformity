@@ -39,6 +39,9 @@ conformity dir1/ sourcedir/ --config rules.toml --plain
 # Machine-readable output
 conformity dir1/ sourcedir/ --config rules.toml --json
 
+# Lenient check for bootstrapping a new target directory
+conformity dir1/ sourcedir/ --config rules.toml --initial
+
 # Open the TUI (also opens when no arguments are given)
 conformity dir1/ sourcedir/ --config rules.toml --interactive
 conformity
@@ -115,6 +118,20 @@ required = [
 - Wildcard requirements are all "at least one match" rules; there is no maximum
   or minimum count beyond one.
 - Absolute paths, `..`, and backslash separators are rejected in rule paths.
+
+### Initial mode
+
+Pass `--initial` (or `initial=True` with the Python API) when starting a new
+target directory. In this mode conformity is less strict:
+
+- `identical` and `different` files only have to exist; their contents are not
+  hashed.
+- Directory rules are skipped, so missing directories are not reported yet.
+- `[files].required` rules are still checked as usual.
+
+File existence is still enforced, so rules pointing at missing files fail. Once
+the directory is populated, run conformity again without `--initial` for the
+full conformance check.
 
 ## Library / interactive use
 

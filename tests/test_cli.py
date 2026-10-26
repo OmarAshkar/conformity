@@ -91,6 +91,32 @@ def test_only_one_directory_is_an_error(tmp_path) -> None:
     assert "provided together" in result.output
 
 
+def test_initial_mode_skips_content_and_directory_checks(tmp_path) -> None:
+    target, source = tmp_path / "target", tmp_path / "source"
+    write(target, "LICENSE", "MIT\n")
+    write(source, "LICENSE", "GPL\n")
+    rules = write(
+        tmp_path,
+        "rules.toml",
+        '[files]\nidentical = ["LICENSE"]\n[directories]\nrequired = ["src"]\n',
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            str(target),
+            str(source),
+            "--config",
+            str(rules),
+            "--plain",
+            "--initial",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "PASS  identical LICENSE" in result.stdout
+
+
 def test_version() -> None:
     result = runner.invoke(app, ["--version"])
 

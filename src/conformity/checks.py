@@ -36,10 +36,15 @@ def run_checks(
     target: str | Path,
     source: str | Path,
     config: Config | str | Path,
+    initial: bool = False,
 ) -> Report:
     """Check *target* against the rules of *source*.
 
     ``config`` is a loaded :class:`Config` or a path to a TOML rules file.
+
+    When ``initial`` is true, only file existence is checked: ``identical`` and
+    ``different`` files are not hashed, and directory rules are skipped. This
+    is useful when bootstrapping a new target directory.
     """
 
     target_dir = Path(target)
@@ -54,17 +59,22 @@ def run_checks(
     hashes: dict[Path, str] = {}
 
     for pattern in config.identical:
-        _check_identical(report, target_dir, source_dir, pattern, hashes)
+        _check_identical(
+            report, target_dir, source_dir, pattern, hashes, initial=initial
+        )
     for pattern in config.different:
-        _check_different(report, target_dir, source_dir, pattern, hashes)
+        _check_different(
+            report, target_dir, source_dir, pattern, hashes, initial=initial
+        )
     for pattern in config.required_files:
         _check_required_file(report, target_dir, pattern)
-    for directory in config.required_dirs:
-        _check_required_dir(report, target_dir, directory)
-    for pattern in config.structure_required:
-        _check_structure_required(report, target_dir, pattern)
-    for directory, entries in config.structure.items():
-        _check_structure(report, target_dir, directory, entries)
+    if not initial:
+        for directory in config.required_dirs:
+            _check_required_dir(report, target_dir, directory)
+        for pattern in config.structure_required:
+            _check_structure_required(report, target_dir, pattern)
+        for directory, entries in config.structure.items():
+            _check_structure(report, target_dir, directory, entries)
 
     return report
 
@@ -82,6 +92,8 @@ def _check_identical(
     source: Path,
     pattern: str,
     hashes: dict[Path, str],
+    *,
+    initial: bool = False,
 ) -> None:
     expected = _expected_files(source, pattern)
     if not expected:
@@ -115,6 +127,8 @@ def _check_identical(
             report.add(
                 CheckResult(RuleKind.IDENTICAL, relative, Status.FAIL, "not a file in target")
             )
+        elif initial:
+            report.add(CheckResult(RuleKind.IDENTICAL, relative, Status.PASS, "file exists"))
         elif sha256(source_file, hashes) != sha256(target_file, hashes):
             report.add(
                 CheckResult(
@@ -136,6 +150,8 @@ def _check_different(
     source: Path,
     pattern: str,
     hashes: dict[Path, str],
+    *,
+    initial: bool = False,
 ) -> None:
     expected = _expected_files(source, pattern)
     if not expected:
@@ -169,6 +185,8 @@ def _check_different(
             report.add(
                 CheckResult(RuleKind.DIFFERENT, relative, Status.FAIL, "not a file in target")
             )
+        elif initial:
+            report.add(CheckResult(RuleKind.DIFFERENT, relative, Status.PASS, "file exists"))
         elif sha256(source_file, hashes) == sha256(target_file, hashes):
             report.add(
                 CheckResult(

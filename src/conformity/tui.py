@@ -75,11 +75,13 @@ class ConformityApp(App[None]):
         target: str | Path | None = None,
         source: str | Path | None = None,
         config: str | Path | None = None,
+        initial: bool = False,
     ) -> None:
         super().__init__()
         self._initial_target = str(target) if target else str(Path.cwd())
         self._initial_source = str(source) if source else ""
         self._initial_config = str(config) if config else ""
+        self._initial_mode = initial
         self._report: Report | None = None
 
     def compose(self) -> ComposeResult:
@@ -139,7 +141,9 @@ class ConformityApp(App[None]):
             return
 
         try:
-            report = run_checks(target, source, Path(config))
+            report = run_checks(
+                target, source, Path(config), initial=self._initial_mode
+            )
         except (ConfigError, ConformanceError) as exc:
             self.notify(str(exc), title="Cannot run checks", severity="error")
             return
@@ -175,7 +179,10 @@ def run_tui(
     target: str | Path | None = None,
     source: str | Path | None = None,
     config: str | Path | None = None,
+    initial: bool = False,
 ) -> None:
     """Open the interactive TUI."""
 
-    ConformityApp(target=target, source=source, config=config).run()
+    ConformityApp(
+        target=target, source=source, config=config, initial=initial
+    ).run()
