@@ -14,21 +14,12 @@ different = [
     "config/local.toml",
 ]
 
-# Files required in the target. Glob patterns need at least one match.
-required = [
+# Must match at least one file. Glob patterns need at least one match, and a
+# directory followed by an asterisk matches every file inside it.
+match = [
     "src/*.py",
 ]
 
 [directories]
-# Must exist in the target. A glob needs at least one matching directory.
-required = ["src", "tests", "docs", "packages/*"]
-
-[directories.structure]
-# Paths are relative to the target. Glob entries need at least one match, and
-# a trailing slash requires a directory.
-required = [
-    "src/__init__.py",
-    "src/*py",
-    "OUTPUTS/",
-    "tests/conftest.py",
-]
+# Must match at least one directory. Literal paths must exist.
+match = ["src", "tests", "docs", "packages/*"]

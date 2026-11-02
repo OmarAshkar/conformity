@@ -98,7 +98,7 @@ def test_initial_mode_skips_content_and_directory_checks(tmp_path) -> None:
     rules = write(
         tmp_path,
         "rules.toml",
-        '[files]\nidentical = ["LICENSE"]\n[directories]\nrequired = ["src"]\n',
+        '[files]\nidentical = ["LICENSE"]\n[directories]\nmatch = ["src"]\n',
     )
 
     result = runner.invoke(

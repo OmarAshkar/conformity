@@ -66,15 +66,11 @@ def run_checks(
         _check_different(
             report, target_dir, source_dir, pattern, hashes, initial=initial
         )
-    for pattern in config.required_files:
-        _check_required_file(report, target_dir, pattern)
+    for pattern in config.match_files:
+        _check_match_file(report, target_dir, pattern)
     if not initial:
-        for directory in config.required_dirs:
-            _check_required_dir(report, target_dir, directory)
-        for pattern in config.structure_required:
-            _check_structure_required(report, target_dir, pattern)
-        for directory, entries in config.structure.items():
-            _check_structure(report, target_dir, directory, entries)
+        for directory in config.match_dirs:
+            _check_match_dir(report, target_dir, directory)
 
     return report
 
@@ -207,13 +203,11 @@ def _check_different(
             )
 
 
-def _check_required_file(report: Report, target: Path, pattern: str) -> None:
-    """A required file is a literal path or a glob with at least one match."""
+def _check_match_file(report: Report, target: Path, pattern: str) -> None:
+    """A matched file is a literal path or a glob with at least one match."""
 
     if _is_glob(pattern):
-        matches = [
-            match for match in _glob_matches(target, pattern) if (target / match).is_file()
-        ]
+        matches = _glob_files(target, pattern)
         if matches:
             report.add(
                 CheckResult(
@@ -238,7 +232,7 @@ def _check_required_file(report: Report, target: Path, pattern: str) -> None:
         report.add(CheckResult(RuleKind.FILE, pattern, Status.FAIL, "missing file"))
 
 
-def _check_required_dir(report: Report, target: Path, directory: str) -> None:
+def _check_match_dir(report: Report, target: Path, directory: str) -> None:
     if _is_glob(directory):
         matches = [
             match
@@ -280,137 +274,6 @@ def _check_required_dir(report: Report, target: Path, directory: str) -> None:
         )
 
 
-def _check_structure_required(report: Report, target: Path, pattern: str) -> None:
-    """Check a flat structure requirement relative to the target root.
-
-    A trailing ``/`` requires a directory. Glob patterns need at least one
-    match; without a trailing slash files and directories are both accepted.
-    """
-
-    wants_directory = pattern.endswith("/")
-    normalized = pattern.rstrip("/") or pattern
-
-    if _is_glob(normalized):
-        matches = _glob_matches(target, normalized)
-        if wants_directory:
-            matches = [match for match in matches if (target / match).is_dir()]
-        if matches:
-            singular = "directory" if wants_directory else "entry"
-            plural = "directories" if wants_directory else "entries"
-            report.add(
-                CheckResult(
-                    RuleKind.DIRECTORY,
-                    pattern,
-                    Status.PASS,
-                    _describe_matches(matches, singular, plural),
-                )
-            )
-        else:
-            message = (
-                "no directories match pattern"
-                if wants_directory
-                else "no entries match pattern"
-            )
-            report.add(CheckResult(RuleKind.DIRECTORY, pattern, Status.FAIL, message))
-        return
-
-    path = target / normalized
-    if wants_directory:
-        if path.is_dir():
-            report.add(
-                CheckResult(
-                    RuleKind.DIRECTORY,
-                    pattern,
-                    Status.PASS,
-                    "directory exists",
-                )
-            )
-        elif path.exists():
-            report.add(
-                CheckResult(RuleKind.DIRECTORY, pattern, Status.FAIL, "not a directory")
-            )
-        else:
-            report.add(
-                CheckResult(RuleKind.DIRECTORY, pattern, Status.FAIL, "missing directory")
-            )
-        return
-
-    if path.exists():
-        report.add(
-            CheckResult(
-                RuleKind.DIRECTORY,
-                pattern,
-                Status.PASS,
-                "required entry exists",
-            )
-        )
-    else:
-        report.add(
-            CheckResult(
-                RuleKind.DIRECTORY,
-                pattern,
-                Status.FAIL,
-                "missing required entry",
-            )
-        )
-
-
-def _check_structure(
-    report: Report, target: Path, directory: str, entries: tuple[str, ...]
-) -> None:
-    base = target / directory
-    if not base.is_dir():
-        report.add(
-            CheckResult(RuleKind.DIRECTORY, directory, Status.FAIL, "missing directory")
-        )
-        return
-
-    for entry in entries:
-        relative = f"{directory}/{entry}"
-        if _is_glob(entry):
-            matches = _glob_matches(base, entry)
-            if matches:
-                display = [f"{directory}/{match}" for match in matches]
-                report.add(
-                    CheckResult(
-                        RuleKind.DIRECTORY,
-                        relative,
-                        Status.PASS,
-                        _describe_matches(display, "entry", "entries"),
-                    )
-                )
-            else:
-                report.add(
-                    CheckResult(
-                        RuleKind.DIRECTORY,
-                        relative,
-                        Status.FAIL,
-                        "no entries match pattern",
-                    )
-                )
-            continue
-
-        path = target / relative
-        if path.exists():
-            report.add(
-                CheckResult(
-                    RuleKind.DIRECTORY,
-                    relative,
-                    Status.PASS,
-                    "required entry exists",
-                )
-            )
-        else:
-            report.add(
-                CheckResult(
-                    RuleKind.DIRECTORY,
-                    relative,
-                    Status.FAIL,
-                    "missing required entry",
-                )
-            )
-
-
 def _is_glob(pattern: str) -> bool:
     return bool(_GLOB_CHARS.intersection(pattern))
 
@@ -423,6 +286,25 @@ def _glob_matches(root: Path, pattern: str) -> list[str]:
         include_hidden=True,
     )
     return sorted({Path(match).as_posix() for match in matches})
+
+
+def _glob_files(root: Path, pattern: str) -> list[str]:
+    """Return every file matched by *pattern*.
+
+    When a glob matches a directory (for example ``src/*``), every file inside
+    that directory is included as well.
+    """
+
+    files: set[str] = set()
+    for relative in _glob_matches(root, pattern):
+        path = root / relative
+        if path.is_file():
+            files.add(relative)
+        elif path.is_dir():
+            for nested in path.rglob("*"):
+                if nested.is_file():
+                    files.add(nested.relative_to(root).as_posix())
+    return sorted(files)
 
 
 def _describe_matches(matches: list[str], singular: str, plural: str) -> str:
@@ -439,8 +321,4 @@ def _expected_files(root: Path, pattern: str) -> list[str]:
     if not _is_glob(pattern):
         return [Path(pattern).as_posix()]
 
-    return [
-        relative
-        for relative in _glob_matches(root, pattern)
-        if (root / relative).is_file()
-    ]
+    return _glob_files(root, pattern)

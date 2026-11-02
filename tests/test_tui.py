@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 
-from textual.widgets import DataTable
+from textual.widgets import Button, DataTable
 
-from conformity.tui import ConformityApp
+from conformity.tui import ConformityApp, UpdatePrompt
 
 
 def write(root, relative: str, content: str = "same\n") -> None:
@@ -39,5 +40,97 @@ def test_tui_reports_missing_paths(tmp_path) -> None:
             await pilot.pause()
             table = app.query_one(DataTable)
             assert table.row_count == 0
+
+    asyncio.run(scenario())
+
+
+def test_tui_updates_target_from_source(tmp_path) -> None:
+    target, source = tmp_path / "target", tmp_path / "source"
+    write(target, "LICENSE", "old\n")
+    write(source, "LICENSE", "new\n")
+    rules = tmp_path / "rules.toml"
+    rules.write_text('[files]\nidentical = ["LICENSE"]\n', encoding="utf-8")
+
+    async def scenario() -> None:
+        app = ConformityApp(target=target, source=source, config=rules)
+        async with app.run_test(size=(100, 30)) as pilot:
+            app.action_run()
+            await pilot.pause()
+            app.on_data_table_row_selected(SimpleNamespace(cursor_row=0))
+            await pilot.pause()
+            assert isinstance(app.screen, UpdatePrompt)
+
+            app.screen.query_one("#target", Button).press()
+            await pilot.pause()
+            await pilot.pause()
+
+        assert (target / "LICENSE").read_text(encoding="utf-8") == "new\n"
+
+    asyncio.run(scenario())
+
+
+def test_tui_updates_source_from_target(tmp_path) -> None:
+    target, source = tmp_path / "target", tmp_path / "source"
+    write(target, "LICENSE", "target\n")
+    write(source, "LICENSE", "source\n")
+    rules = tmp_path / "rules.toml"
+    rules.write_text('[files]\nidentical = ["LICENSE"]\n', encoding="utf-8")
+
+    async def scenario() -> None:
+        app = ConformityApp(target=target, source=source, config=rules)
+        async with app.run_test(size=(100, 30)) as pilot:
+            app.action_run()
+            await pilot.pause()
+            app.on_data_table_row_selected(SimpleNamespace(cursor_row=0))
+            await pilot.pause()
+
+            app.screen.query_one("#source", Button).press()
+            await pilot.pause()
+            await pilot.pause()
+
+        assert (source / "LICENSE").read_text(encoding="utf-8") == "target\n"
+
+    asyncio.run(scenario())
+
+
+def test_tui_cancel_does_not_update(tmp_path) -> None:
+    target, source = tmp_path / "target", tmp_path / "source"
+    write(target, "LICENSE", "target\n")
+    write(source, "LICENSE", "source\n")
+    rules = tmp_path / "rules.toml"
+    rules.write_text('[files]\nidentical = ["LICENSE"]\n', encoding="utf-8")
+
+    async def scenario() -> None:
+        app = ConformityApp(target=target, source=source, config=rules)
+        async with app.run_test(size=(100, 30)) as pilot:
+            app.action_run()
+            await pilot.pause()
+            app.on_data_table_row_selected(SimpleNamespace(cursor_row=0))
+            await pilot.pause()
+
+            app.screen.query_one("#cancel", Button).press()
+            await pilot.pause()
+
+        assert (target / "LICENSE").read_text(encoding="utf-8") == "target\n"
+        assert (source / "LICENSE").read_text(encoding="utf-8") == "source\n"
+
+    asyncio.run(scenario())
+
+
+def test_tui_single_click_opens_update_prompt(tmp_path) -> None:
+    target, source = tmp_path / "target", tmp_path / "source"
+    write(target, "LICENSE", "target\n")
+    write(source, "LICENSE", "source\n")
+    rules = tmp_path / "rules.toml"
+    rules.write_text('[files]\nidentical = ["LICENSE"]\n', encoding="utf-8")
+
+    async def scenario() -> None:
+        app = ConformityApp(target=target, source=source, config=rules)
+        async with app.run_test(size=(100, 30)) as pilot:
+            app.action_run()
+            await pilot.pause()
+            await pilot.click(DataTable, offset=(20, 1))
+            await pilot.pause()
+            assert isinstance(app.screen, UpdatePrompt)
 
     asyncio.run(scenario())

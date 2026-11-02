@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import tomllib
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -17,10 +17,8 @@ class Config:
 
     identical: tuple[str, ...] = ()
     different: tuple[str, ...] = ()
-    required_files: tuple[str, ...] = ()
-    required_dirs: tuple[str, ...] = ()
-    structure_required: tuple[str, ...] = ()
-    structure: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    match_files: tuple[str, ...] = ()
+    match_dirs: tuple[str, ...] = ()
     path: Path | None = None
 
     @property
@@ -28,10 +26,8 @@ class Config:
         return not (
             self.identical
             or self.different
-            or self.required_files
-            or self.required_dirs
-            or self.structure_required
-            or self.structure
+            or self.match_files
+            or self.match_dirs
         )
 
 
@@ -61,43 +57,23 @@ def parse_config(raw: dict[str, Any], *, path: Path | None = None) -> Config:
     files = raw.get("files", {})
     if not isinstance(files, dict):
         raise ConfigError("[files] must be a table")
-    _reject_unknown(files, {"identical", "different", "required"}, "[files]")
+    _reject_unknown(files, {"identical", "different", "match"}, "[files]")
 
     directories = raw.get("directories", {})
     if not isinstance(directories, dict):
         raise ConfigError("[directories] must be a table")
-    _reject_unknown(directories, {"required", "structure"}, "[directories]")
+    _reject_unknown(directories, {"match"}, "[directories]")
 
     identical = _patterns(files.get("identical", []), "[files].identical")
     different = _patterns(files.get("different", []), "[files].different")
-    required_files = _patterns(files.get("required", []), "[files].required")
-    required_dirs = _patterns(directories.get("required", []), "[directories].required")
-
-    raw_structure = directories.get("structure", {})
-    if not isinstance(raw_structure, dict):
-        raise ConfigError("[directories.structure] must be a table")
-    structure_required: tuple[str, ...] = ()
-    structure: dict[str, tuple[str, ...]] = {}
-    for directory, entries in raw_structure.items():
-        if not isinstance(directory, str):
-            raise ConfigError("[directories.structure] keys must be strings")
-        if directory == "required":
-            structure_required = _patterns(
-                entries, "[directories.structure].required"
-            )
-            continue
-        _validate_pattern(directory, f"[directories.structure].{directory}")
-        structure[directory] = _patterns(
-            entries, f"[directories.structure].{directory}"
-        )
+    match_files = _patterns(files.get("match", []), "[files].match")
+    match_dirs = _patterns(directories.get("match", []), "[directories].match")
 
     config = Config(
         identical=identical,
         different=different,
-        required_files=required_files,
-        required_dirs=required_dirs,
-        structure_required=structure_required,
-        structure=structure,
+        match_files=match_files,
+        match_dirs=match_dirs,
         path=path,
     )
     if config.is_empty:

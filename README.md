@@ -8,12 +8,28 @@ TUI.
 
 ## Install
 
+From PyPI:
+
+```console
+uv tool install conformity-cli
+# or
+pip install conformity-cli
+```
+
+From conda-forge (once the recipe is merged):
+
+```console
+conda install -c conda-forge conformity-cli
+```
+
+For development:
+
 ```console
 uv sync
 uv run conformity --help
 ```
 
-Or install it as a tool:
+Or install the checkout as a tool:
 
 ```console
 uv tool install .
@@ -47,6 +63,10 @@ conformity dir1/ sourcedir/ --config rules.toml --interactive
 conformity
 ```
 
+In the TUI, click a failed `identical` or `different` result to open a
+confirmation prompt. Choose whether to overwrite the target copy with the source
+copy, or the source copy with the target copy.
+
 Exit codes: `0` conforms, `1` one or more checks failed, `2` invalid usage,
 missing directory, or invalid config.
 
@@ -58,9 +78,9 @@ file are relative to the target and source directories. Glob patterns are
 supported (`*`, `?`, `**`, `[...]`).
 
 ```toml
+[files]
 # Files that must exist in both directories with identical contents.
 # Compared by SHA-256; the path must match too.
-[files]
 identical = [
   "LICENSE",
   "pyproject.toml",
@@ -75,48 +95,35 @@ different = [
 ]
 
 # Files required in the target. Literal paths must exist; glob patterns must
-# match at least one file. Use this for "at least one" expectations.
-required = [
+# match at least one file. A directory followed by an asterisk (for example
+# "src/*") matches every file inside it.
+match = [
+  "README.md",
   "src/*.py",       # at least one Python file directly in src/
   "docs/**/*.md",   # at least one Markdown file anywhere under docs/
 ]
 
 [directories]
-# Directories that must exist in the target. Wildcards work here too:
-# at least one matching directory must exist.
-required = ["src", "tests", "docs", "packages/*"]
-
-# Flexible structure requirements, relative to the target root. A trailing
-# slash requires a directory; glob patterns need at least one match.
-[directories.structure]
-required = [
-  "src/__init__.py",
-  "src/*py",
-  "OUTPUTS/",
-  "packages/*/",
-  "tests/conftest.py",
-]
+# Directories that must exist in the target. Literal paths must exist; glob
+# patterns must match at least one directory.
+match = ["src", "tests", "docs", "packages/*"]
 ```
 
 ### Semantics
 
-- `identical`: every path matched in the source must exist at the same relative
-  path in the target and have the same SHA-256 digest.
-- `different`: every path matched in the source must exist in the target and
-  must have a different SHA-256 digest.
-- `[files].required`: literal paths must be files in the target; glob patterns
-  must match at least one file. Directories are ignored by glob matches.
-- `[directories].required`: literal directories must exist in the target; glob
+- `[files].identical`: every file matched in the source must exist at the same
+  relative path in the target and have the same SHA-256 digest. A glob that
+  matches a directory (such as `src/*`) includes every file inside it.
+- `[files].different`: every file matched in the source must exist in the
+  target and must have a different SHA-256 digest. Directory matches are
+  expanded the same way as `identical`.
+- `[files].match`: literal paths must be files in the target; glob patterns
+  must match at least one file. Directories matched by a glob include the files
+  inside them.
+- `[directories].match`: literal directories must exist in the target; glob
   patterns must match at least one directory.
-- `[directories.structure].required`: each path is checked relative to the
-  target root. Literal paths must exist, glob patterns must match at least one
-  entry, and a trailing `/` requires the match to be a directory.
-- The original per-directory structure table (for example
-  `[directories.structure]` with `src = ["__init__.py"]`) is still supported.
 - If a glob matches no files in the source for `identical`/`different`, the rule
   reports an error instead of silently passing.
-- Wildcard requirements are all "at least one match" rules; there is no maximum
-  or minimum count beyond one.
 - Absolute paths, `..`, and backslash separators are rejected in rule paths.
 
 ### Initial mode
@@ -127,7 +134,7 @@ target directory. In this mode conformity is less strict:
 - `identical` and `different` files only have to exist; their contents are not
   hashed.
 - Directory rules are skipped, so missing directories are not reported yet.
-- `[files].required` rules are still checked as usual.
+- `[files].match` rules are still checked as usual.
 
 File existence is still enforced, so rules pointing at missing files fail. Once
 the directory is populated, run conformity again without `--initial` for the

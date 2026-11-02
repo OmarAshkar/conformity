@@ -76,6 +76,30 @@ def test_identical_glob_without_matches_is_an_error(tmp_path) -> None:
     assert report.errors[0].message == "no files matched in source"
 
 
+def test_identical_glob_expands_matched_directories(tmp_path) -> None:
+    target, source = tmp_path / "target", tmp_path / "source"
+    write(target, "src/a.py", "a\n")
+    write(source, "src/a.py", "a\n")
+    write(source, "src/sub/b.py", "b\n")
+
+    report = run_checks(target, source, config(identical=("src/*",)))
+
+    statuses = {result.path: result.status for result in report.results}
+    assert statuses["src/a.py"] is Status.PASS
+    assert statuses["src/sub/b.py"] is Status.FAIL
+
+
+def test_match_file_glob_expands_matched_directories(tmp_path) -> None:
+    target, source = tmp_path / "target", tmp_path / "source"
+    write(target, "src/sub/a.py")
+    source.mkdir()
+
+    report = run_checks(target, source, config(match_files=("src/*",)))
+
+    assert report.ok
+    assert report.results[0].message == "1 file match (src/sub/a.py)"
+
+
 def test_different_files_pass(tmp_path) -> None:
     target, source = tmp_path / "target", tmp_path / "source"
     write(target, ".env", "TOKEN=real\n")
@@ -113,7 +137,7 @@ def test_required_file_glob_needs_at_least_one_match(tmp_path) -> None:
     write(target, "src/notes.txt")
     source.mkdir()
 
-    report = run_checks(target, source, config(required_files=("src/*.py",)))
+    report = run_checks(target, source, config(match_files=("src/*.py",)))
 
     assert report.ok
     assert report.results[0].kind is RuleKind.FILE
@@ -125,7 +149,7 @@ def test_required_file_glob_without_matches_fails(tmp_path) -> None:
     (target / "src" / "not_a_file.py").mkdir(parents=True)
     source.mkdir()
 
-    report = run_checks(target, source, config(required_files=("src/*.py",)))
+    report = run_checks(target, source, config(match_files=("src/*.py",)))
 
     assert report.failures[0].message == "no files match pattern"
 
@@ -135,7 +159,7 @@ def test_required_literal_file(tmp_path) -> None:
     write(target, "README.md")
     source.mkdir()
 
-    report = run_checks(target, source, config(required_files=("README.md", "LICENSE")))
+    report = run_checks(target, source, config(match_files=("README.md", "LICENSE")))
 
     statuses = {result.path: result.status for result in report.results}
     assert statuses["README.md"] is Status.PASS
@@ -148,29 +172,12 @@ def test_required_directory_glob_needs_at_least_one_match(tmp_path) -> None:
     write(target, "packages/one/README.md")
     source.mkdir()
 
-    report = run_checks(target, source, config(required_dirs=("packages/*", "plugins/*")))
+    report = run_checks(target, source, config(match_dirs=("packages/*", "plugins/*")))
 
     statuses = {result.path: result.status for result in report.results}
     assert statuses["packages/*"] is Status.PASS
     assert statuses["plugins/*"] is Status.FAIL
     assert report.results[0].message == "1 directory match (packages/one)"
-
-
-def test_structure_entries_support_globs(tmp_path) -> None:
-    target, source = tmp_path / "target", tmp_path / "source"
-    (target / "src").mkdir(parents=True)
-    write(target, "src/a.py")
-    source.mkdir()
-
-    report = run_checks(
-        target,
-        source,
-        config(structure={"src": ("*.py", "*.md")}),
-    )
-
-    statuses = {result.path: result.status for result in report.results}
-    assert statuses["src/*.py"] is Status.PASS
-    assert statuses["src/*.md"] is Status.FAIL
 
 
 def test_required_directories(tmp_path) -> None:
@@ -179,95 +186,12 @@ def test_required_directories(tmp_path) -> None:
     source.mkdir()
 
     report = run_checks(
-        target, source, config(required_dirs=("src", "tests"))
+        target, source, config(match_dirs=("src", "tests"))
     )
 
     statuses = {result.path: result.status for result in report.results}
     assert statuses["src"] is Status.PASS
     assert statuses["tests"] is Status.FAIL
-
-
-def test_flat_structure_required_supports_paths_and_globs(tmp_path) -> None:
-    target, source = tmp_path / "target", tmp_path / "source"
-    write(target, "src/__init__.py")
-    write(target, "src/core.py")
-    (target / "OUTPUTS").mkdir(parents=True)
-    source.mkdir()
-
-    report = run_checks(
-        target,
-        source,
-        config(
-            structure_required=(
-                "src/__init__.py",
-                "OUTPUTS/",
-                "src/*py",
-                "missing/",
-                "*.md",
-            )
-        ),
-    )
-
-    statuses = {result.path: result.status for result in report.results}
-    assert statuses["src/__init__.py"] is Status.PASS
-    assert statuses["OUTPUTS/"] is Status.PASS
-    assert statuses["src/*py"] is Status.PASS
-    assert statuses["missing/"] is Status.FAIL
-    assert statuses["*.md"] is Status.FAIL
-
-
-def test_flat_structure_glob_with_trailing_slash_requires_directories(tmp_path) -> None:
-    target, source = tmp_path / "target", tmp_path / "source"
-    (target / "packages" / "one").mkdir(parents=True)
-    write(target, "packages/file.py")
-    source.mkdir()
-
-    report = run_checks(
-        target,
-        source,
-        config(structure_required=("packages/*/",)),
-    )
-
-    assert report.ok
-    assert report.results[0].message == "1 directory match (packages/one)"
-
-
-def test_flat_structure_literal_with_trailing_slash_must_be_directory(tmp_path) -> None:
-    target, source = tmp_path / "target", tmp_path / "source"
-    write(target, "OUTPUTS")
-    source.mkdir()
-
-    report = run_checks(target, source, config(structure_required=("OUTPUTS/",)))
-
-    assert report.failures[0].message == "not a directory"
-
-
-def test_structure_requires_minimal_entries(tmp_path) -> None:
-    target, source = tmp_path / "target", tmp_path / "source"
-    (target / "src").mkdir(parents=True)
-    write(target, "src/__init__.py", "")
-    source.mkdir()
-
-    report = run_checks(
-        target,
-        source,
-        config(structure={"src": ("__init__.py", "core")}),
-    )
-
-    statuses = {result.path: result.status for result in report.results}
-    assert statuses["src/__init__.py"] is Status.PASS
-    assert statuses["src/core"] is Status.FAIL
-
-
-def test_structure_missing_directory_reports_once(tmp_path) -> None:
-    target, source = tmp_path / "target", tmp_path / "source"
-    target.mkdir()
-    source.mkdir()
-
-    report = run_checks(target, source, config(structure={"src": ("a", "b")}))
-
-    assert len(report.results) == 1
-    assert report.results[0].message == "missing directory"
 
 
 def test_initial_mode_only_requires_files_to_exist(tmp_path) -> None:
@@ -283,9 +207,7 @@ def test_initial_mode_only_requires_files_to_exist(tmp_path) -> None:
         config(
             identical=("LICENSE",),
             different=(".env",),
-            required_dirs=("src",),
-            structure_required=("OUTPUTS/",),
-            structure={"src": ("__init__.py",)},
+            match_dirs=("src",),
         ),
         initial=True,
     )
@@ -295,7 +217,6 @@ def test_initial_mode_only_requires_files_to_exist(tmp_path) -> None:
     assert statuses["LICENSE"] is Status.PASS
     assert statuses[".env"] is Status.PASS
     assert "src" not in statuses
-    assert "OUTPUTS/" not in statuses
 
 
 def test_initial_mode_still_requires_listed_files(tmp_path) -> None:
@@ -322,7 +243,7 @@ def test_config_from_path(tmp_path) -> None:
     target.mkdir()
     source.mkdir()
     path = tmp_path / "rules.toml"
-    path.write_text('[directories]\nrequired = ["src"]\n', encoding="utf-8")
+    path.write_text('[directories]\nmatch = ["src"]\n', encoding="utf-8")
 
     report = run_checks(target, source, path)
 
