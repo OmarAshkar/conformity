@@ -1,0 +1,21 @@
+# Example sync file. Run it with: conformity sync SOURCE
+#
+# The files copied to each destination are the [files].identical patterns from
+# the rules file (conformity.toml / rules.toml). This file only lists where
+# they should be replicated.
+
+# "ssh" (default) or "https". Full URLs are used as written.
+protocol = "ssh"
+
+# Optional branch for every destination. Defaults to each remote's HEAD.
+# branch = "main"
+
+# Optional override for the commit created in each destination.
+# commit_message = "autoupdate repo structure"
+
+destinations = [
+    "OmarAshkar/example-one",
+    "OmarAshkar/example-two",
+    # A full URL is also accepted and is used unchanged.
+    "git@github.com:OmarAshkar/example-three.git",
+]

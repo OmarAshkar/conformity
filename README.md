@@ -70,6 +70,53 @@ copy, or the source copy with the target copy.
 Exit codes: `0` conforms, `1` one or more checks failed, `2` invalid usage,
 missing directory, or invalid config.
 
+## Sync
+
+`conformity sync` replicates the `[files].identical` files of a source
+directory into one or more Git repositories. The source directory is read
+as-is; each destination is cloned or updated in a cache directory, verified
+with the conformance engine, committed as `autoupdate repo structure`, and
+pushed.
+
+```console
+# Uses the configs found in ./dir1 or its parent directory
+conformity sync dir1/
+
+# Explicit configs (they may live outside dir1, for example ../)
+conformity sync dir1/ --config ../rules.toml --sync-config ../sync.toml
+
+# Preview, commit without pushing, or remove destination-only files
+conformity sync dir1/ --dry-run
+conformity sync dir1/ --no-push
+conformity sync dir1/ --delete --yes
+```
+
+The sync file lists the destinations:
+
+```toml
+protocol = "ssh"          # default; use "https" for token-based auth
+branch = "main"           # optional; defaults to each remote's HEAD
+commit_message = "autoupdate repo structure"
+destinations = [
+  "owner/repo-one",       # expanded to git@github.com:owner/repo-one.git
+  "owner/repo-two",
+  "git@github.com:owner/repo-three.git",  # full URLs are used unchanged
+]
+```
+
+Config discovery looks for the rules file (`conformity.toml`, `rules.toml`,
+`.conformity.toml`) and the sync file (`conformity-sync.toml`, `sync.toml`,
+`conformity.sync.toml`, `.conformity-sync.toml`) in `SOURCE`, then in its
+parent directory. Pass `--config` or `--sync-config` to skip discovery.
+
+Destinations are cached in `$XDG_CACHE_HOME/conformity/repos` (or
+`~/.cache/conformity/repos`); set `CONFORMITY_CACHE_DIR` to override it.
+Only files matched by `[files].identical` are copied. `--delete` also removes
+destination files matched by those rules that no longer exist in the source.
+`.git` paths and symlinks are never synced. Sync exits with `0` when every
+destination succeeds, `1` when a destination fails, and `2` for invalid usage
+or config.
+
 ## Rules
 
 Rules are read from the file passed to `--config`. Keeping the file in the

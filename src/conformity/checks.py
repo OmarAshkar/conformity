@@ -322,3 +322,25 @@ def _expected_files(root: Path, pattern: str) -> list[str]:
         return [Path(pattern).as_posix()]
 
     return _glob_files(root, pattern)
+
+
+def pattern_files(root: str | Path, pattern: str) -> list[str]:
+    """Return every file selected by *pattern*.
+
+    Unlike the internal check helpers, a literal directory is expanded into the
+    files it contains. A literal file or missing path is returned unchanged so
+    callers can report it themselves.
+    """
+
+    base = Path(root)
+    if not _is_glob(pattern):
+        path = base / pattern
+        if path.is_dir() and not path.is_symlink():
+            return sorted(
+                nested.relative_to(base).as_posix()
+                for nested in path.rglob("*")
+                if nested.is_file() or nested.is_symlink()
+            )
+        return [Path(pattern).as_posix()]
+
+    return _glob_files(base, pattern)
